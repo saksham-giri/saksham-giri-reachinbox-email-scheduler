@@ -1,0 +1,101 @@
+# Production stack for a single server: run with
+#   docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build
+# Only Caddy (web) is reachable from outside; Postgres, Redis and Elasticsearch
+# have no published ports and are reachable only by the API and worker.
+name: reachinbox-prod
+
+x-backend: &backend
+  build: ./backend
+  image: reachinbox-backend
+  restart: unless-stopped
+  env_file: .env.production
+  environment:
+    NODE_ENV: production
+    PORT: "4000"
+    BACKEND_URL: https://${DOMAIN}
+    FRONTEND_URL: https://${DOMAIN}
+    DATABASE_URL: postgresql://scheduler:${POSTGRES_PASSWORD}@postgres:5432/scheduler
+    REDIS_URL: redis://redis:6379
+    ELASTICSEARCH_URL: http://elasticsearch:9200
+  depends_on:
+    postgres:
+      condition: service_healthy
+    redis:
+      condition: service_started
+    elasticsearch:
+      # Elasticsearch takes ~20 s to boot; the app creates its index on start.
+      condition: service_healthy
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: scheduler
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: scheduler
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U scheduler"]
+      interval: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--appendfsync", "everysec", "--maxmemory-policy", "noeviction"]
+    volumes:
+      - redisdata:/data
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.17.0
+    restart: unless-stopped
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+    mem_limit: 1g
+    volumes:
+      - esdata:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s localhost:9200/_cluster/health | grep -qE '\"status\":\"(green|yellow)\"'"]
+      interval: 5s
+      retries: 30
+
+  api:
+    <<: *backend
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:4000/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 10s
+      start_period: 30s
+      retries: 10
+
+  worker:
+    <<: *backend
+    command: ["node", "dist/worker.js"]
+    depends_on:
+      api:
+        # The API runs the migrations on start; the worker waits for them.
+        condition: service_healthy
+
+  web:
+    build: ./frontend
+    restart: unless-stopped
+    environment:
+      DOMAIN: ${DOMAIN}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - api
+
+volumes:
+  pgdata:
+  redisdata:
+  esdata:
+  caddy_data:
+  caddy_config:

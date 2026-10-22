@@ -87,7 +87,9 @@ export async function scheduleCampaign(userId: string, input: ScheduleCampaignIn
     senderId: senders[i % senders.length].id,
     toEmail,
     sequence: i,
-    scheduledAt: new Date(startMs + i * delayMs),
+    // At least 1 ms apart: BullMQ breaks ties between equal run times by job id
+    // (a random UUID here), which would release same-time emails out of order.
+    scheduledAt: new Date(startMs + i * Math.max(delayMs, 1)),
   }));
 
   for (const batch of chunk(rows, 1000)) {

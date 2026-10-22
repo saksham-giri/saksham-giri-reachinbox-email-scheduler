@@ -78,6 +78,25 @@ npm run dev                   # http://localhost:5173
 
 The Vite dev server proxies `/api` and `/admin` to the backend, so the session cookie is first-party and no CORS setup is needed in development.
 
+### Production (one server, Docker)
+
+`docker-compose.prod.yml` runs the whole stack on a single Linux server: Postgres, Redis (AOF), Elasticsearch, the API, the worker, and **Caddy**. Caddy serves the built frontend, forwards `/api` and `/admin` to the API on the same domain, and gets a Let's Encrypt HTTPS certificate automatically. Only ports 80 and 443 are exposed; the databases are reachable only inside Docker. The API applies database migrations on start, and the worker waits for it.
+
+Requirements: a server with **4 GB RAM** (Elasticsearch alone takes about 1 GB), Docker installed, a domain whose DNS A record points at the server, and outbound port 587 open (Ethereal SMTP).
+
+```bash
+git clone <this repo> && cd <repo>
+cp .env.production.example .env.production   # fill in DOMAIN, secrets, OAuth keys
+docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build
+```
+
+Then, in the OAuth consoles:
+
+- **Google:** add `https://<DOMAIN>/api/auth/google/callback` as a redirect URI and `https://<DOMAIN>` as a JavaScript origin. Publish the app (Audience → Publish) so anyone can sign in, not just listed test users. The `openid email profile` scopes need no Google review.
+- **Slack:** add `https://<DOMAIN>/api/slack/callback` as a redirect URL. To let other workspaces connect, enable Manage Distribution → Activate Public Distribution. No ngrok is needed in production.
+
+Update after a `git pull` with the same `up -d --build` command. Delayed jobs and data live in Docker volumes and survive rebuilds and reboots.
+
 ## 2. Configuration
 
 Everything is read from `backend/.env` and validated with zod at boot (`src/config/env.ts`). Nothing below is hard-coded.
@@ -283,7 +302,9 @@ These were run end to end against the Docker stack, with real Ethereal SMTP. Tes
 | Kill worker 45 s before 2 future emails, restart at once | Both held and sent at their due times, not early. |
 | Redis data lost (jobs gone, rows still pending) | Boot reconciliation re-enqueued 6 missing jobs; each was sent once. |
 | Duplicate jobs for an already-sent email (same and different job IDs) | Same ID: no-op. Different IDs: both skipped as "already SENT"; `attempts` stayed 1. |
-| 1000 emails at the same moment, 2 worker processes | Scheduled in about 215 ms. 6 sent in the first window, 994 rescheduled in 5.5 s, spread exactly 6 per future window in order. Sends were about 1 s apart across both workers, with no re-deferrals. |
+| 1000 emails at the same moment, 2 worker processes | Scheduled in about 215 ms. 6 sent in the first window, 994 rescheduled in 5.5 s, spread exactly 6 per future window. Sends were about 1 s apart across both workers, with no re-deferrals. |
+| Order of that backlog | 990 of 1000 emails land in their fair window, the other 10 one window off (parallel-job jitter). Emails are spaced at least 1 ms apart so equal times never tie: BullMQ breaks ties by job id, which here is a random UUID. |
+| Fresh clone of the repo, production build, both workers hard-killed mid-backlog | Clean install and build; migration on an empty database; after restart every pending email still had its job (988 = 988), no email was sent twice, and the 2-per-sender cap held in every window. |
 | Totals across all runs | Every email sent exactly once (`attempts = 1` on every row), 0 errors. |
 
 ## 6. Demo script

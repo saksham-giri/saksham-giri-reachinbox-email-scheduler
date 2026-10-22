@@ -1,0 +1,20 @@
+# DOMAIN comes from docker-compose.prod.yml. With a real domain Caddy obtains
+# a Let's Encrypt certificate automatically; with "localhost" it uses a local one.
+{$DOMAIN} {
+	encode gzip
+
+	# Same origin for the app and its API, so the session cookie stays first-party.
+	handle /api/* {
+		reverse_proxy api:4000
+	}
+	handle /admin* {
+		reverse_proxy api:4000
+	}
+
+	# Single-page app: unknown paths fall back to index.html for React Router.
+	handle {
+		root * /srv
+		try_files {path} /index.html
+		file_server
+	}
+}

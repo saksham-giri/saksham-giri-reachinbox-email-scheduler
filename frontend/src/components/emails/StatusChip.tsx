@@ -17,7 +17,7 @@ export function StatusChip({ email }: { email: Pick<Email, 'status' | 'scheduled
     case 'DELAYED':
       return (
         <span className={cn(chip, 'border-amber-300 bg-amber-50 text-amber-800')} title="Hourly limit reached, moved to the next available window">
-          <Hourglass className="h-4 w-4" /> {formatChipTime(email.scheduledAt)}
+          <Hourglass className="h-4 w-4" /> Rate limited · {formatChipTime(email.scheduledAt)}
         </span>
       );
     case 'PROCESSING':

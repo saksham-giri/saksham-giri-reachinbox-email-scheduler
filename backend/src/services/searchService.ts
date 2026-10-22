@@ -56,6 +56,8 @@ export async function ensureSearchIndex(): Promise<void> {
     });
     log.info(`created index "${index}"`);
   } catch (err) {
+    // The API and workers start together; whoever loses the race finds the index already there.
+    if (String(err).includes('resource_already_exists_exception')) return;
     log.warn('could not ensure Elasticsearch index (search will fall back to Postgres)', err);
   }
 }
