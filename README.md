@@ -327,7 +327,7 @@ Run end to end against real Redis, Postgres, Elasticsearch and Ethereal SMTP. Te
 
 ## 8. Demo video
 
-Link: _add link here_. What it shows, in order:
+Link: https://drive.google.com/file/d/1-98ZfcOqxpdcuTnIJpCc10dfSIyOZVH-/view?usp=sharing. What it shows, in order:
 
 1. Google login; name, email and avatar in the sidebar card. **Connect Slack** through Slack's real OAuth page (disconnect and reconnect from the same menu).
 2. Compose → **Upload List** with `samples/leads.csv` (12 addresses detected) → subject, body, delay 5 s → Send Later 2 minutes ahead. The Scheduled list and Bull Board → Delayed show the 12 jobs.
