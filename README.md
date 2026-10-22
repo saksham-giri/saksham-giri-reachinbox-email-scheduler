@@ -329,9 +329,9 @@ Run end to end against real Redis, Postgres, Elasticsearch and Ethereal SMTP. Te
 
 Link: _add link here_. What it shows, in order:
 
-1. Google login; name, email and avatar in the sidebar card.
+1. Google login; name, email and avatar in the sidebar card. **Connect Slack** through Slack's real OAuth page (disconnect and reconnect from the same menu).
 2. Compose → **Upload List** with `samples/leads.csv` (12 addresses detected) → subject, body, delay 5 s → Send Later 2 minutes ahead. The Scheduled list and Bull Board → Delayed show the 12 jobs.
-3. **Restart scenario:** stop the API and worker before the send time, start them again after it; the overdue emails go out once each and the rest on time.
+3. **Restart scenario:** stop the API and worker before the send time, start them again, and the scheduled (future) emails still go out at their time, once each. Emails that fall due while the server is down go out immediately on restart.
 4. **Rate limit** (with `RATE_LIMIT_WINDOW_MS=60000`, `MAX_EMAILS_PER_HOUR_PER_SENDER=2`): 6 emails send, the other 6 show "Rate limited" with their new time, and a **live Slack message** arrives the moment a sender hits its limit. The held emails go out in the following windows.
 5. Sent list → an email's detail → the delivered message in Ethereal; search by part of an address (Elasticsearch).
 6. The verified results above for the 1000-email case.
