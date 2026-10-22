@@ -1,0 +1,103 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum EmailStatus {
+  SCHEDULED // waiting for its BullMQ delayed job to fire
+  PROCESSING // claimed by a worker, send in progress
+  DELAYED // hourly limit hit, rescheduled into a later window
+  SENT
+  FAILED
+}
+
+model User {
+  id        String            @id @default(uuid())
+  googleId  String            @unique
+  email     String            @unique
+  name      String
+  avatarUrl String?
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+  campaigns Campaign[]
+  emails    Email[]
+  slack     SlackIntegration?
+}
+
+model SlackIntegration {
+  id          String   @id @default(uuid())
+  userId      String   @unique
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  teamId      String
+  teamName    String
+  channel     String
+  webhookUrl  String
+  accessToken String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Sender {
+  id         String   @id @default(uuid())
+  name       String
+  email      String   @unique
+  smtpHost   String
+  smtpPort   Int
+  smtpSecure Boolean  @default(false)
+  smtpUser   String
+  smtpPass   String
+  createdAt  DateTime @default(now())
+  emails     Email[]
+}
+
+model Campaign {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subject     String
+  body        String   @db.Text
+  startAt     DateTime
+  delayMs     Int
+  // Optional per-campaign cap; sender/global caps from env always apply.
+  hourlyLimit Int?
+  totalEmails Int
+  createdAt   DateTime @default(now())
+  emails      Email[]
+
+  @@index([userId, createdAt])
+}
+
+model Email {
+  id          String      @id @default(uuid())
+  campaignId  String
+  campaign    Campaign    @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  senderId    String
+  sender      Sender      @relation(fields: [senderId], references: [id])
+  toEmail     String
+  // Position inside the campaign; used to keep ordering when jobs get rescheduled.
+  sequence    Int
+  status      EmailStatus @default(SCHEDULED)
+  scheduledAt DateTime
+  // Time of delivery (SENT) or of the final failed attempt (FAILED).
+  sentAt      DateTime?
+  // Set while a worker owns the email; a stale lock means the worker died mid-send.
+  lockedAt    DateTime?
+  attempts    Int         @default(0)
+  deferrals   Int         @default(0)
+  starred     Boolean     @default(false)
+  messageId   String?
+  previewUrl  String?
+  error       String?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@unique([campaignId, toEmail])
+  @@index([userId, status, scheduledAt])
+  @@index([status])
+}
