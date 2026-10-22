@@ -1,0 +1,17 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  @apply bg-white text-gray-900 antialiased;
+}
+
+/* Formatting inside the composer and the email preview */
+.rich-text ul { @apply list-disc pl-6; }
+.rich-text ol { @apply list-decimal pl-6; }
+.rich-text blockquote { @apply border-l-4 border-gray-300 pl-3 text-gray-600; }
+.rich-text a { @apply text-brand-600 underline; }
+.rich-text:empty::before {
+  content: attr(data-placeholder);
+  @apply pointer-events-none text-gray-400;
+}
