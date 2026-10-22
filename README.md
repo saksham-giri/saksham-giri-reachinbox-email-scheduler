@@ -3,7 +3,7 @@
 A production-grade email scheduler with a dashboard. Express + BullMQ + Redis + PostgreSQL on the backend, React + Tailwind on the frontend, all in TypeScript. Emails are scheduled as BullMQ delayed jobs (no cron), sent through Ethereal (fake SMTP) from several senders, made searchable with Elasticsearch, and a Slack message is posted the moment an hourly sending limit is hit.
 
 - **Live app:** https://reachinbox-saksham.duckdns.org (sign in with Google)
-- **Demo video:** _add link here_
+- **Demo video:** https://drive.google.com/file/d/1-98ZfcOqxpdcuTnIJpCc10dfSIyOZVH-/view?usp=sharing
 - **Queue dashboard (Bull Board):** https://reachinbox-saksham.duckdns.org/admin/queues (credentials shared on request)
 
 ```
